@@ -1,0 +1,10 @@
+pydantic
+moviepy
+gradio_client
+fastapi
+uvicorn
+edge-tts
+numpy
+python-dotenv
+requests
+imageio-ffmpeg

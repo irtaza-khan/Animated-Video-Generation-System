@@ -1,0 +1,46 @@
+# Virtual Environments
+Agentic-project/
+venv/
+.venv/
+env/
+bin/
+lib/
+share/
+include/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+
+# Environment Variables
+.env
+.env.local
+
+# Generated Data & Outputs
+data/temp/
+data/state_versions/
+*.mp4
+*.mp3
+*.wav
+*.png
+*.jpg
+
+# Wav2Lip Assets
+Wav2Lip/checkpoints/
+Wav2Lip/face_detection/detection/sfd/s3fd.pth
+Wav2Lip/results/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# VS Code / IDE
+.vscode/
+.idea/

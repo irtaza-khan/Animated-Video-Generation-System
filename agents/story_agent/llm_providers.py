@@ -11,6 +11,12 @@ import re
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 GROQ_ENABLED = os.getenv("GROQ_ENABLED", "0").strip().lower() in {"1", "true", "yes"}
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
@@ -168,7 +174,7 @@ def make_script_via_ollama(payload: Dict[str, Any]) -> Dict[str, Any]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         response_payload = json.loads(resp.read().decode("utf-8"))
     content = response_payload.get("response", "")
     parsed = _extract_json_from_text(str(content))
@@ -176,47 +182,44 @@ def make_script_via_ollama(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def make_script_local(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Deterministic local script generator — no external API needed."""
+    """Deterministic local script generator — no external API needed.
+    Provides a 3-act structure to avoid repetitive dialogue.
+    """
     prompt = payload.get("prompt", "Story")
     num_scenes = int(payload.get("num_scenes", 3))
-    prompt_lower = prompt.lower()
-    prompt_keywords = [
-        word for word in prompt_lower.replace("-", " ").replace(",", " ").split()
-        if len(word) > 3 and word not in {"about", "scene", "with", "from", "into", "dark", "night"}
-    ]
-
-    def _theme() -> str:
-        if any(t in prompt_lower for t in ["daylight", "day", "sun", "bright"]): return "daylight"
-        if any(t in prompt_lower for t in ["rain", "storm", "wet"]): return "rain"
-        if any(t in prompt_lower for t in ["metro", "subway", "train"]): return "transit"
-        if any(t in prompt_lower for t in ["warehouse", "dock", "alley"]): return "urban"
-        if any(t in prompt_lower for t in ["lab", "facility", "server"]): return "facility"
-        return "generic"
-
-    def _dialogue_pair(theme: str, idx: int) -> List[Dict[str, str]]:
-        keyword = prompt_keywords[(idx - 1) % len(prompt_keywords)] if prompt_keywords else "target"
-        cue_a = "Close-up, tense lighting" if idx % 2 else "Wide shot, cinematic framing"
-        cue_b = "Tracking shot, low contrast" if idx % 2 else "Side light, controlled motion"
-        lines = {
-            "daylight": (f"Keep your face visible. {keyword.capitalize()} is exposed.", "We move before the crowd notices."),
-            "rain": (f"The rain covers our steps near the {keyword}.", "Stay close, use the noise as cover."),
-            "transit": ("Check the far platform for tails.", "If they move, we vanish into the next carriage."),
-            "urban": (f"The {keyword} is blocked, take the side route.", "Keep low. Cameras sweep every few seconds."),
-            "facility": (f"Seal the {keyword} before files are erased.", "Copy that. I'll keep watch."),
-        }.get(theme, (f"Handle the {keyword} before it slips away.", "Move now, stay off the open line."))
-        return [
-            {"speaker": "Agent A", "line": lines[0], "visual_cue": cue_a},
-            {"speaker": "Agent B", "line": lines[1], "visual_cue": cue_b},
+    
+    # Simple progression templates to avoid repetition
+    progression = {
+        1: [
+            "This is the place. Keep your eyes open.",
+            "I'm scanning the area now. Looks clear."
+        ],
+        2: [
+            "We have a problem. They know we're here.",
+            "Stand your ground. We aren't leaving without it."
+        ],
+        3: [
+            "We got it. Let's move before backup arrives.",
+            "Copy that. I'm right behind you."
         ]
+    }
 
     scenes: List[Dict[str, Any]] = []
-    theme = _theme()
     character_metadata = {
         "Agent A": {"name": "Agent A", "gender": "male", "description": "A sharp-looking man in a black suit"},
         "Agent B": {"name": "Agent B", "gender": "female", "description": "A mysterious woman in a trench coat"},
     }
+    
     for idx in range(1, num_scenes + 1):
-        dialogue = _dialogue_pair(theme, idx)
+        lines = progression.get(idx if idx <= 3 else 3)
+        cue_a = "Close-up, tense lighting" if idx % 2 else "Wide shot, cinematic framing"
+        cue_b = "Tracking shot, low contrast" if idx % 2 else "Side light, controlled motion"
+        
+        dialogue = [
+            {"speaker": "Agent A", "line": lines[0], "visual_cue": cue_a},
+            {"speaker": "Agent B", "line": lines[1], "visual_cue": cue_b},
+        ]
+        
         scenes.append({
             "scene_id": idx,
             "location": f"{prompt} - Scene {idx}",
@@ -225,3 +228,4 @@ def make_script_local(payload: Dict[str, Any]) -> Dict[str, Any]:
             "dialogue": dialogue,
         })
     return {"scenes": scenes, "character_metadata": character_metadata}
+

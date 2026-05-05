@@ -1,43 +1,57 @@
+"""Compositor Tool — Phase 4
+
+Stitches all scene videos into a single final_output.mp4.
+By the time this runs, each video already has audio baked in
+by the LipSync agent (or AudioAgent fallback), so we just concatenate.
+"""
 import os
-from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips
-from moviepy.video.fx import Loop
+from moviepy import VideoFileClip, concatenate_videoclips
 from shared.schemas.state_schema import ProjectState
 
-def compose_final_video(state: ProjectState, output_path: str = "data/outputs/final_output.mp4"):
-    clips = []
+
+def compose_final_video(
+    state: ProjectState,
+    output_path: str = "data/outputs/final_output.mp4",
+):
     video_paths = state.assets.get("video_paths", {})
     if not video_paths:
+        print("[Compositor] No video paths found, aborting.")
         return
-        
-    timing = state.timing.scene_timings if state.timing else {}
 
-    # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+    clips = []
     for scene in sorted(state.story.scenes, key=lambda x: x.scene_id):
-        v_path = video_paths.get(str(scene.scene_id))
+        sid_str = str(scene.scene_id)
+        v_path = video_paths.get(sid_str) or video_paths.get(scene.scene_id)
+
         if not v_path or not os.path.exists(v_path):
+            print(f"[Compositor] Scene {sid_str}: video missing at {v_path!r}, skipping")
             continue
-            
-        clip = VideoFileClip(v_path)
-        
-        if scene.scene_id in timing:
-            scene_timing = timing[scene.scene_id]
-            target_duration = scene_timing.duration_ms / 1000.0
-            
-            if clip.duration < target_duration:
-                clip = clip.with_effects([Loop(duration=target_duration)])
-            else:
-                clip = clip.subclip(0, target_duration)
-                
-            a_path = scene_timing.audio_filepath
-            if a_path and os.path.exists(a_path):
-                audio = AudioFileClip(a_path)
-                clip = clip.with_audio(audio)
-                
-        clips.append(clip)
-        
-    if clips:
-        final_clip = concatenate_videoclips(clips)
-        final_clip.write_videofile(output_path, fps=24)
+
+        print(f"[Compositor] Adding scene {sid_str}: {v_path}")
+        try:
+            clip = VideoFileClip(v_path)
+            clips.append(clip)
+        except Exception as e:
+            print(f"[Compositor] Failed to load clip {v_path}: {e}")
+
+    if not clips:
+        print("[Compositor] No valid clips to compose.")
+        return
+
+    print(f"[Compositor] Concatenating {len(clips)} clip(s)...")
+    try:
+        final_clip = concatenate_videoclips(clips, method="compose")
+        final_clip.write_videofile(output_path, fps=24, logger=None)
         state.assets["final_video"] = output_path
+        print(f"[Compositor] Final video written -> {output_path}")
+    except Exception as e:
+        print(f"[Compositor] Concatenation failed: {e}")
+        raise
+    finally:
+        for c in clips:
+            try:
+                c.close()
+            except Exception:
+                pass

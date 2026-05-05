@@ -190,16 +190,23 @@ python test_full_pipeline.py
 ## 📝 Implementation Details
 
 ### Story Agent (Phase 1)
-The story agent accepts a text prompt and generates a structured `StoryOutput` containing scenes with locations, characters, and dialogue lines with visual cues. It uses a cascading LLM strategy: **Groq API** (free, fast cloud inference with Llama 3.1) → **Ollama** (local LLM) → **deterministic local generator** (always works, no external dependency). The output follows the same scene manifest format used in Assignment-3.
+The story agent accepts a text prompt and generates a structured `StoryOutput` containing scenes with locations, characters, **character metadata (gender, description)**, and dialogue lines with visual cues. It uses a cascading LLM strategy: **Groq API** (free, fast cloud inference with Llama 3.1) → **Ollama** (local LLM) → **deterministic local generator** (always works, features a 3-act story progression). The explicit extraction of character metadata ensures that downstream agents (Vision & Audio) can properly cast and voice the characters.
 
 ### Audio Agent (Phase 2)
-The audio agent uses **Edge-TTS** (Microsoft's free neural TTS) to synthesize per-character voice tracks for each scene. It assigns distinct neural voices to different characters (e.g., `en-US-GuyNeural` for Agent A, `en-US-JennyNeural` for Agent B), generates individual `.mp3` segments, transcodes them to `.wav`, and mixes them into a timeline-aligned audio file. If Edge-TTS is unavailable, it falls back to generating deterministic sine-wave tones per speaker. The approach is ported from Assignment-4's `VoiceSynthesisAgent`.
+The audio agent uses **Edge-TTS** (Microsoft's free neural TTS) to synthesize per-character voice tracks for each scene. It leverages the generated `character_metadata` to dynamically assign distinct, gender-appropriate neural voices (e.g., `en-US-GuyNeural` for male, `en-US-JennyNeural` for female). It generates individual `.mp3` segments, transcodes them to `.wav`, and mixes them into a timeline-aligned audio file.
 
 ### Video Agent (Phase 3)
 The video agent interfaces with **Wan2.1** running locally via **Wan2GP on Pinokio**. It uses the `gradio_client` library to drive the multi-step Gradio state machine (model selection → queue → prepare → process → finalize polling). Each scene's prompt is built from the `location` and `visual_cue` fields for rich, contextual video generation. If the Gradio server is unreachable, it falls back to generating color clip placeholders via MoviePy.
 
 > [!NOTE]
-> **Performance:** On an RTX 3060, video generation takes approximately **10-12 minutes per scene**. The pipeline is designed to be asynchronous so the UI remains responsive during this time.
+> **Performance:** On an RTX 3060, video generation takes approximately **10-12 minutes per scene**. The pipeline is designed to be asynchronous so the UI remains responsive during this time, immediately displaying the "Cast Gallery" as soon as character portraits are ready.
+
+### LipSync Agent (Phase 3.5)
+The lipsync agent uses a highly robust **Split-Sync-Merge** strategy. Rather than feeding an entire mixed audio track to Wav2Lip (which causes the first detected face to continuously animate regardless of who is speaking), the agent:
+1. Slices the generated scene video into precise micro-segments based on the dialogue timeline.
+2. Isolates the specific audio track for the currently speaking character.
+3. Feeds only the active segment to Wav2Lip to ensure perfectly matched lip movements.
+4. Seamlessly concatenates the synced segments back into a fluid scene video.
 
 ### State Manager & Edit Agent (Phase 5)
-The state manager takes physical snapshots of both the `ProjectState` JSON and the entire `data/outputs/` directory to `data/state_versions/vX/`. The edit agent parses natural language commands (e.g., "Update scene 2 prompt to: a dark stormy night"), saves an undo point, regenerates **only** the affected scene's video, and recomposites the final output.
+The state manager takes physical snapshots of both the `ProjectState` JSON and the entire `data/outputs/` directory to `data/state_versions/vX/`. The edit agent features a **highly permissive NLP Intent Classifier** that parses natural language commands (e.g., "Update scene 2 prompt to: a dark stormy night", or general "make it rain" commands). It saves an undo point, regenerates **only** the affected scene's video, and seamlessly recomposites the final output in the background.

@@ -22,3 +22,22 @@ class StateManager:
         # but increment it so the next save is a new branch/version.
         state.version = version + 1
         return state
+
+    def load_latest_state(self) -> ProjectState | None:
+        """Loads the most recently saved state version."""
+        from pathlib import Path
+        import os
+        state_dir = Path("data/state_versions")
+        if not state_dir.exists():
+            return None
+        versions = []
+        for d in state_dir.iterdir():
+            if d.is_dir() and d.name.startswith("v"):
+                try:
+                    versions.append(int(d.name[1:]))
+                except ValueError:
+                    pass
+        if not versions:
+            return None
+        latest = max(versions)
+        return load_version(latest)

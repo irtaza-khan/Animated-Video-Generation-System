@@ -92,7 +92,19 @@ def _normalize_script_payload(raw_payload: Dict[str, Any], fallback_prompt: str)
         })
     if not normalized_scenes:
         raise ValueError("No valid scenes found in model output")
-    return {"scenes": normalized_scenes}
+        
+    # Extract character_metadata if provided
+    character_metadata = raw_payload.get("character_metadata", {})
+    if not character_metadata:
+        character_metadata = {}
+        # Auto-generate empty metadata for any characters found
+        for s in normalized_scenes:
+            for c in s["characters"]:
+                if c not in character_metadata:
+                    character_metadata[c] = {"name": c, "gender": "unknown", "description": ""}
+                    
+    return {"scenes": normalized_scenes, "character_metadata": character_metadata}
+
 
 
 def make_script_via_groq(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -103,7 +115,8 @@ def make_script_via_groq(payload: Dict[str, Any]) -> Dict[str, Any]:
     system_instruction = (
         "You are a screenplay planner. Return ONLY valid JSON with this shape: "
         "{\"scenes\": [{\"scene_id\": int, \"location\": str, \"characters\": [str], "
-        "\"dialogue\": [{\"speaker\": str, \"line\": str, \"visual_cue\": str}]}]}."
+        "\"dialogue\": [{\"speaker\": str, \"line\": str, \"visual_cue\": str}]}], "
+        "\"character_metadata\": {\"Character Name\": {\"name\": str, \"gender\": \"male\"|\"female\", \"description\": str}}}."
     )
     user_prompt = (
         f"Generate exactly {num_scenes} scenes for this story prompt: {prompt}. "
@@ -150,7 +163,8 @@ def make_script_via_ollama(payload: Dict[str, Any]) -> Dict[str, Any]:
     system_instruction = (
         "You are a screenplay planner. Return ONLY valid JSON with this shape: "
         "{\"scenes\": [{\"scene_id\": int, \"location\": str, \"characters\": [str], "
-        "\"dialogue\": [{\"speaker\": str, \"line\": str, \"visual_cue\": str}]}]}."
+        "\"dialogue\": [{\"speaker\": str, \"line\": str, \"visual_cue\": str}]}], "
+        "\"character_metadata\": {\"Character Name\": {\"name\": str, \"gender\": \"male\"|\"female\", \"description\": str}}}."
     )
     user_prompt = (
         f"Generate exactly {num_scenes} scenes for this story prompt: {prompt}. "

@@ -59,6 +59,7 @@ async def edit_video(request: EditRequest, background_tasks: BackgroundTasks):
     from agents.edit_agent.intent_classifier import classify_intent
 
     intent = classify_intent(request.query)
+    print(f"[DEBUG] EditRequest received query: '{request.query}', Intent parsed: {intent}")
     if not intent:
         raise HTTPException(status_code=400, detail="Could not understand edit intent")
 
@@ -67,6 +68,29 @@ async def edit_video(request: EditRequest, background_tasks: BackgroundTasks):
     with open(f"data/temp/{job_id}.json", "w") as f:
         json.dump({"status": "queued", "progress": 0}, f)
 
+    def run_edit_task(j_id: str, parsed_intent: dict):
+        try:
+            from state_manager.state_manager import StateManager
+            from agents.edit_agent.executor import execute_edit
+            
+            with open(f"data/temp/{j_id}.json", "w") as f:
+                json.dump({"status": "processing_edit", "progress": 10}, f)
+                
+            sm = StateManager()
+            state = sm.load_latest_state()
+            if not state:
+                raise ValueError("No active project state found")
+                
+            state = execute_edit(state, parsed_intent, sm)
+            sm.save_state(state)
+            
+            with open(f"data/temp/{j_id}.json", "w") as f:
+                json.dump({"status": "completed", "progress": 100}, f)
+        except Exception as e:
+            with open(f"data/temp/{j_id}.json", "w") as f:
+                json.dump({"status": "error", "progress": 0, "error": str(e)}, f)
+
+    background_tasks.add_task(run_edit_task, job_id, intent)
     return {"job_id": job_id, "status": "processing", "intent": intent}
 
 

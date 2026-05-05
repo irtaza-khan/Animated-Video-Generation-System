@@ -134,6 +134,12 @@ function App() {
     setStatusText('processing edit');
     try {
       const res = await axios.post(`${API_BASE}/api/edit`, { query: userMsg });
+      const it = res.data && res.data.intent;
+      if (it && it.target === 'video_frame') {
+        setMessages(prev => [...prev, { sender: 'bot', text: `Applied to Scene ${it.scene_id}: "${it.value}". Reusing original seed for visual continuity.` }]);
+      } else if (it && it.target === 'global') {
+        setMessages(prev => [...prev, { sender: 'bot', text: `Applied globally: "${it.value}". Regenerating every scene with the original seeds.` }]);
+      }
       startPolling(res.data.job_id);
     } catch (err) {
       console.error(err);

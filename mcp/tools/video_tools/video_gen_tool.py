@@ -1,4 +1,5 @@
 import os
+import random
 import shutil
 import time
 import urllib.request
@@ -55,7 +56,7 @@ def _extract_mp4_path(value: Any) -> Path | None:
                 return mp4_files[0]
     return None
 
-def _build_save_inputs_args(client: Client, prompt: str, api_name: str) -> list[Any]:
+def _build_save_inputs_args(client: Client, prompt: str, api_name: str, seed: int) -> list[Any]:
     for endpoint in client.endpoints.values():
         if endpoint.api_name == api_name:
             args = []
@@ -63,14 +64,19 @@ def _build_save_inputs_args(client: Client, prompt: str, api_name: str) -> list[
                 name = param["parameter_name"]
                 if name == "prompt": args.append(prompt)
                 elif name == "negative_prompt": args.append("")
-                elif name == "seed": args.append(-1)
+                elif name == "seed": args.append(seed)
                 elif param.get("parameter_has_default"): args.append(param.get("parameter_default"))
                 else: args.append(None)
             return args
-    return [prompt, "", -1] # Fallback naive
+    return [prompt, "", seed] # Fallback naive
 
-def generate_video(prompt: str, output_path: str):
-    """Attempts to generate a video via Wan2GP Gradio; falls back if unavailable."""
+def generate_video(prompt: str, output_path: str, seed: int = -1) -> int:
+    """Attempts to generate a video via Wan2GP Gradio; falls back if unavailable.
+
+    Returns the seed actually used. Pass seed=-1 (default) to pick a random one;
+    pass a stored seed to keep regenerations compositionally similar."""
+    if seed is None or seed < 0:
+        seed = random.randint(0, 2**31 - 1)
     try:
         # Fast check if server is up (socket-level, 2 second timeout)
         import socket
@@ -89,7 +95,7 @@ def generate_video(prompt: str, output_path: str):
         try: client.predict("t2v_1.3B", api_name="/change_model")
         except: pass
         
-        args = _build_save_inputs_args(client, prompt, GRADIO_SAVE_INPUTS_API_NAME)
+        args = _build_save_inputs_args(client, prompt, GRADIO_SAVE_INPUTS_API_NAME, seed)
         client.predict(*args, api_name=GRADIO_SAVE_INPUTS_API_NAME)
         client.predict(api_name="/init_generate")
         try:
@@ -112,10 +118,12 @@ def generate_video(prompt: str, output_path: str):
             
         if mp4_path and mp4_path.exists():
             shutil.copy(str(mp4_path), output_path)
-            print(f"Generated video via Wan2.1: {output_path}")
+            print(f"Generated video via Wan2.1 (seed={seed}): {output_path}")
         else:
             raise Exception("Timeout waiting for generation")
-            
+
     except Exception as e:
         print(f"Wan2GP generation failed ({e}). Falling back to mock.")
         mock_video(output_path, prompt)
+
+    return seed

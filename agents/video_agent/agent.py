@@ -35,13 +35,16 @@ def run_video_agent(state: ProjectState) -> ProjectState:
     
     if "video_paths" not in state.assets:
         state.assets["video_paths"] = {}
+    if "video_seeds" not in state.assets:
+        state.assets["video_seeds"] = {}
 
     for scene in state.story.scenes:
         output_path = f"data/outputs/scenes/scene_{scene.scene_id}.mp4"
         prompt = _build_video_prompt(scene)
         print(f"Video Agent processing scene {scene.scene_id}...")
         print(f"  Prompt: {prompt[:80]}...")
-        generate_video(prompt, output_path)
+        used_seed = generate_video(prompt, output_path, seed=-1)
         state.assets["video_paths"][str(scene.scene_id)] = output_path
-        
+        state.assets["video_seeds"][str(scene.scene_id)] = used_seed
+
     return state

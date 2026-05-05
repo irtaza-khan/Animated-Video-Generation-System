@@ -99,7 +99,29 @@ async def undo_edit():
     from state_manager.state_manager import StateManager
     sm = StateManager()
     try:
-        sm.revert_to_version(1)
-        return {"status": "success", "message": "Reverted to previous version"}
+        current = sm.get_current_version()
+        if current <= 1:
+            raise HTTPException(status_code=400, detail="Cannot undo further")
+        sm.revert_to_version(current - 1)
+        return {"status": "success", "message": f"Reverted to version {current - 1}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/redo")
+async def redo_edit():
+    from state_manager.state_manager import StateManager
+    sm = StateManager()
+    try:
+        current = sm.get_current_version()
+        # Check if next version exists
+        try:
+            sm.revert_to_version(current + 1)
+            return {"status": "success", "message": f"Redid to version {current + 1}"}
+        except FileNotFoundError:
+            raise HTTPException(status_code=400, detail="Cannot redo further")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

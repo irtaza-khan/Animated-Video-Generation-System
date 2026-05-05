@@ -5,9 +5,32 @@ class StateManager:
     def __init__(self):
         pass
         
+    def _get_current_ver_path(self):
+        import os
+        os.makedirs("data", exist_ok=True)
+        return "data/current_version.txt"
+
+    def get_current_version(self) -> int:
+        path = self._get_current_ver_path()
+        import os
+        if not os.path.exists(path):
+            # Try to infer from state_versions
+            latest = self.load_latest_state()
+            if latest:
+                return latest.version - 1
+            return 1
+        with open(path, "r") as f:
+            return int(f.read().strip())
+
+    def _set_current_version(self, version: int):
+        path = self._get_current_ver_path()
+        with open(path, "w") as f:
+            f.write(str(version))
+
     def save_state(self, state: ProjectState) -> ProjectState:
         """Saves the current state and increments the version for the NEXT operation."""
         save_version(state)
+        self._set_current_version(state.version)
         # Increment version for the active state
         state.version += 1
         return state
@@ -16,10 +39,8 @@ class StateManager:
         """Restores a previous version's state JSON and assets."""
         state = load_version(version)
         revert_assets(version)
+        self._set_current_version(version)
         # Prepare the state for new edits by incrementing version
-        # to avoid overwriting the history when we save next.
-        # Actually, let's just leave the version as the loaded one,
-        # but increment it so the next save is a new branch/version.
         state.version = version + 1
         return state
 
@@ -41,3 +62,4 @@ class StateManager:
             return None
         latest = max(versions)
         return load_version(latest)
+

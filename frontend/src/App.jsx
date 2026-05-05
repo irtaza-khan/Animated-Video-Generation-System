@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Send, Undo2, Play, Loader2, Sparkles } from 'lucide-react';
+import { Send, Undo2, Redo2, Play, Loader2, Sparkles } from 'lucide-react';
 import './index.css';
 
 const API_BASE = 'http://localhost:8000';
@@ -91,16 +91,31 @@ function App() {
   const handleUndo = async () => {
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/api/undo`);
+      const res = await axios.post(`${API_BASE}/api/undo`);
       setVideoUrl(`${API_BASE}/outputs/final_output.mp4?t=${new Date().getTime()}`);
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Successfully reverted to previous version.' }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: res.data.message }]);
       setLoading(false);
     } catch (err) {
       console.error(err);
       setLoading(false);
-      alert('Failed to undo');
+      alert(err.response?.data?.detail || 'Failed to undo');
     }
   };
+
+  const handleRedo = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.post(`${API_BASE}/api/redo`);
+      setVideoUrl(`${API_BASE}/outputs/final_output.mp4?t=${new Date().getTime()}`);
+      setMessages(prev => [...prev, { sender: 'bot', text: res.data.message }]);
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+      alert(err.response?.data?.detail || 'Failed to redo');
+    }
+  };
+
 
   return (
     <div className="dashboard">
@@ -175,9 +190,14 @@ function App() {
       <div className="sidebar">
         <div className="chat-header">
           <h2>Edit Agent</h2>
-          <button className="undo-btn" onClick={handleUndo} title="Undo last edit">
-            <Undo2 size={18} /> Undo
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="undo-btn" onClick={handleUndo} title="Undo last edit" disabled={loading}>
+              <Undo2 size={18} />
+            </button>
+            <button className="undo-btn" onClick={handleRedo} title="Redo last edit" disabled={loading}>
+              <Redo2 size={18} />
+            </button>
+          </div>
         </div>
         
         <div className="chat-messages">

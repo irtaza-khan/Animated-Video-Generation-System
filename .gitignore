@@ -26,11 +26,7 @@ frontend/dist/
 # Generated Data & Outputs
 data/temp/
 data/state_versions/
-*.mp4
-*.mp3
-*.wav
-*.png
-*.jpg
+*.zip
 
 # Wav2Lip Assets
 Wav2Lip/checkpoints/
